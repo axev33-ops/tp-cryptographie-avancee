@@ -1,0 +1,1130 @@
+\documentclass[11pt,a4paper]{article}
+
+% Encodage et langue
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage[french]{babel}
+
+% Mathématiques
+\usepackage{amssymb}
+\usepackage{mathtools}
+\usepackage[ruled,vlined,french,frenchkw]{algorithm2e}
+
+\usepackage[locale=FR]{siunitx}
+\sisetup{
+    round-mode = places,
+    round-precision = 2,
+}
+\usepackage{tabularray}
+\UseTblrLibrary{booktabs}
+\UseTblrLibrary{siunitx}
+
+\usepackage{booktabs}
+\usepackage{tabularx}
+
+\usepackage{geometry}
+\geometry{margin=2.5cm}
+\usepackage[french]{babel}
+\usepackage{hyperref}
+
+% Raccourcis mathématiques
+\newcommand{\F}{\mathbb{F}_2}
+\newcommand{\Code}{\mathcal{C}}
+\newcommand{\R}{\mathcal{R}}
+\newcommand{\hw}[1]{\lVert#1\rVert}
+\newcommand{\transpose}[1]{#1^{T}}
+\DeclareMathOperator{\rot}{rot}
+\DeclareMathOperator{\rang}{rg}
+\DeclareMathOperator{\Card}{Card}
+
+\title{TP cryptographie basée sur les codes}
+\author{Yann Denichou \and Younes Kantas}
+\date{\today\\[1em]M1 CRYPTIS -- Université de Limoges}
+
+\begin{document}
+
+\maketitle
+
+\tableofcontents
+\newpage
+
+\section*{Notations}
+
+Nous emploierons les notations suivantes :
+\begin{itemize}
+    \item $\F$ : corps fini à 2 éléments $\{0, 1\}$ ;
+    \item $\F^n$ : espace vectoriel de dimension $n$ sur $\F$ ;
+    \item $\R = \F[X]/(X^n - 1)$ : anneau de polynômes quotient ;
+    \item $\hw{v}$ : poids de Hamming de $v \in \F^n$.
+    %\item $\rot(v)$ : Matrice circulante associée à $v$
+    %\item $\oplus$ : Addition binaire (XOR)
+\end{itemize}
+
+Pour ce qui est des codes linéaires, nous adopterons les notations classiques
+suivantes.
+Ici, ils seront binaires, c'est-à-dire que le corps de base est $\F$.
+Soit $\Code$ un code linéaire binaire.
+On notera $n$ sa longueur, $k$ sa dimension, $d$ sa distance minimale, $t$ sa
+capacité de correction,
+$G \in \F^{k \times n}$ une matrice génératrice de $\Code$ et
+$H \in \F^{(n - k) \times n}$ une matrice de parité de $\Code$.
+
+\section{Introduction}
+
+La cryptographie basée sur les codes correcteurs d'erreurs s'impose aujourd'hui
+comme l'une des solutions en cryptographie post-quantique.
+Elle s'appuie sur la difficulté algorithmique de problèmes liés au codes,
+notamment celui du décodage par syndrome.
+
+Ce rapport documente nos travaux pratiques autour de ce domaine, structurés
+selon deux axes : l'attaque et la défense. 
+
+Dans une première partie, nous étudierons et implémenterons l'algorithme
+\emph{Information Set Decoding} (ISD) dans sa version historique proposée par
+Prange. Cette méthode constitue l'outil générique de référence pour
+cryptanalyser ces systèmes. 
+Dans une seconde partie, nous nous intéresserons au système de chiffrement MDPC
+(\emph{Moderate Density Parity Check}) basé sur le schéma de BIKE-2.
+Nous détaillerons sa mécanique interne, l'optimisation de ses opérations via les
+structures quasi-cycliques, ainsi que son déchiffrement itératif par
+l'algorithme \emph{BitFlip}. 
+Enfin, une brève analyse comparative de nos temps de calcul mettra en lumière
+l'asymétrie de complexité fondamentale qui garantit la sécurité de ce
+cryptosystème en pratique.
+
+\section{Algorithme Information Set Decoding (ISD)}
+
+L'algorithme ISD (Information Set Decoding) est la méthode principale pour
+attaquer les cryptosystèmes basés sur les codes. Il a été proposé initialement
+par Prange en 1962.
+
+\subsection{Principe de l'algorithme ISD}
+
+\subsubsection{Problème du décodage par syndrome}
+\label{sec-pb-decodage-syndrome}
+
+Soit $\Code$ un code linéaire binaire (on reprendra les notations introduites
+en introduction) et $x \in \F^k$ un mot d'information.
+Le problème du décodage consiste à retrouver le mot d'information $x$ en
+connaissant $G$ et $y = xG + e$ un mot de code entaché de l'erreur $e \in \F^n$
+telle que $\hw{e} \le t$ (i.e. le code est capable de corriger $e$).
+Sa résolution peut passer par la correction de $y$, autrement dit on détermine
+$xG$ et $e$, puis, connaissant $G$ et $xG$, il suffit alors de résoudre un
+système linéaire pour recouvrer $x$.
+
+Ce problème du décodage est équivalent au problème du décodage par syndrome.
+Le syndrome d'un mot de code erroné $y = xG + e$ est $s = H\transpose{y}$.
+Il faut remarquer que puisque $H\transpose{G} = 0$, on a :
+\[
+  s = H\transpose{y} = H\transpose{(xG + e)}
+    = H\transpose{G}\transpose{x} + H\transpose{e}
+    = H\transpose{e}.
+\]
+Ce deuxième problème consiste à déterminer $e$ connaissant $s$ et $H$.
+Une fois $e$ trouvé, on peut obtenir $xG = y - e$ et procéder de la même manière
+que précédemment connaissant $G$.
+
+La difficulté du problème du décodage par syndrome réside dans le nombre de
+solutions de l'équation $s = H\transpose{e}$ d'inconnue $e$.
+En effet, si $H$ est de rang plein ($\rang H = n - k$), alors son noyau est de
+dimension $k$ (d'après le théorème du rang), donc comme $\Card \F = 2$, ce
+système a $2^k$ solutions.
+L'unicité de l'erreur $e$ associée au syndrome $s$ est assurée par la condition
+$\hw{e} \le t$ (dans notre cas on prendra $\hw{e} = t$)\footnote{Montrons-le par
+  l'absurde. S'il existe deux $e_1$ et $e_2$ distincts qui vérifient ces
+  conditions, alors $H\transpose{(e_1 - e_2)} = s - s = 0$, donc $c = e_1 - e_2
+  \in \Code$ et $\hw{c} \le \hw{e_1} + \hw{e_2} \le 2t$. On en déduit que la
+  distance entre $0$ et $c$ est inférieure à $2t$, ce qui contredit $2t < d$
+  (car $t = \lfloor (d - 1) / 2 \rfloor$).}.
+Ainsi, on résume ce problème à la détermination de $e \in \F^n$ tel que $He^T =
+s$ et $\hw{e} = t$.
+
+\subsubsection{Description de l'algorithme}
+
+L'idée de l'algorithme est de prendre aléatoirement $n-k$ colonnes de $H$ pour
+former une matrice $H'$. Si $H'$ n'est pas inversible, on recommence. Si $H'$
+est inversible, alors on peut trouver une solution $e$ à l'équation $He^T = s$.
+En effet, on peut calculer la solution partielle $e' = H'^{-1}s$ et la compléter
+avec des $0$ aux indices qui n'ont pas servi à construire $H'$.
+Pour suivre ces indices on introduit une permutation.
+Enfin, on teste notre condition $\hw{e} = t$, si elle est vérifiée nous sommes bien
+en présence de l'erreur associée à $s$, sinon on recommence avec une autre matrice
+$H'$.
+En bref, cela donne l'algorithme suivant.
+Nous détaillerons notre implémentation par la suite.
+
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\Entree{Matrice de parité $H \in \F^{(n-k)\times n}$, syndrome $s \in \F^{n-k}$, poids cible $w$.}
+\Sortie{L'erreur $e \in \F^n$ associée au syndrome $s$ (telle que $He^T = s$ et
+$\hw{e} = w$).}
+\Repeter{$w' = w$}{
+    \Repeter{$H'$ inversible}{
+        Choisir une permutation aléatoire $P \in \F^{n\times n}$.\;
+        Former $H' \in \F^{(n-k)\times (n-k)}$ en prenant les $n-k$ premières colonnes de $HP$.\;
+    }
+    %Trouver $U \in \F^{(n-k)\times (n-k)}$ tel que $UHP = [I_{n-k} \mid \tilde{H}]$ (mise sous forme systématique par élimination de Gauss)\;
+    $H'_{\text{inv}} \leftarrow H'^{-1}$\;
+    $e' \leftarrow H_{\text{inv}} s$\;
+    $w' \leftarrow \hw{e}$\;
+}
+\Retour{$(e', 0_{\F^k})P^{-1}$}\tcp*{En pratique pas besoin de calculer $P^{-1}$.}
+\caption{ISD de Prange}
+\end{algorithm}
+\medbreak
+La notion d'ensemble d'information (\emph{information set}) se trouve dans la
+vision duale (on regarde $G$ au lieu de $H$) : c'est un ensemble de $k$
+positions qui ne contiennent pas d'erreurs. Ici, on regarde son complémentaire
+de $n-k$ positions.
+
+\subsubsection{Complexité}
+
+Le coût moyen de l'algorithme est $W/P$ avec $W$ le coût d'inversion d'une
+matrice de taille $n-k$ et $P$ la probabilité que $H'$ contienne les $w$
+colonnes associées à l'erreur ; les autres opérations de l'algorithme ont un
+coût négligeable.
+
+Pour former $H'$ on tire $n-k$ colonnes de $H$ aléatoirement.
+On en déduit que la probabilité $P$ est le quotient du nombre de tirages
+contenant $w$ colonnes fixées, par le nombre total de tirages, respectivement
+$\binom{n-w}{n-k-w}$ et $\binom{n}{n-k}$.
+En utilisant l'identité $\binom{N}{N - K} = \binom{N}{K}$ on obtient la première
+égalité :
+\begin{equation}
+  \label{eq-P}
+    P = \frac{\binom{n-w}{n-k-w}}{\binom{n}{n-k}}
+      = \frac{\binom{n-w}{k}}{\binom{n}{k}}
+      = \frac{\binom{n-k}{w}}{\binom{n}{w}}
+\end{equation}
+Et on vérifie la deuxième par :
+\begin{equation*}
+  \frac{\binom{n-w}{k}}{\binom{n}{k}}
+  = \frac{\frac{(n-w)!}{k!\,(n-k-w)!}}{\frac{n!}{k!\,(n-k)!}}
+  = \frac{(n-w)!\,(n-k)!}{(n-k-w)!\,n!}
+  = \frac{\frac{(n-k)!}{w!\,(n-k-w)!}}{\frac{n!}{w!\,(n-w)!}}
+  = \frac{\binom{n-k}{w}}{\binom{n}{w}}.
+\end{equation*}
+Remarquons au passage que pour calculer le nombre d'itérations moyen qui est
+$1/P$, on utilisera :
+\begin{equation*}
+  \label{eq-nombre-moyen-iterations-isd}
+  \frac{1}{P}
+  = \frac{\binom{n}{w}}{\binom{n-k}{w}}
+  %= \frac{(n-k-w)!\,n!}{(n-w)!\,(n-k)!}
+  = \frac{n!}{(n-w)!} \times \frac{(n-k-w)!}{(n-k)!}
+  = \left(\prod_{i = 0}^{w - 1} (n - i)\right) \left(\prod_{i = 0}^{w - 1} \frac{1}{n - k - i} \right)
+  = \prod_{i = 0}^{w - 1} \frac{n - i}{n - k - i}. 
+\end{equation*}
+
+On en déduit que la complexité de l'algorithme est :
+\begin{equation}
+    O\left((n-k)^3 \times \frac{\binom{n}{w}}{\binom{n-k}{w}}\right)
+\end{equation}
+où $(n-k)^3$ est le coût de l'inversion de matrice par Gauss et le quotient de
+coefficients binomiaux est le nombre moyen d'itérations nécessaires.
+En se ramenant à une variable (en prenant $k = n/2$ et $w = n/9$ par exemple), on
+obtient approximativement une complexité de $O(2^{0,1207n})$.
+
+%\subsection{Versions améliorées de l'ISD}
+%Depuis Prange (1962), de nombreuses améliorations ont été proposées :
+%
+%\paragraph{Version de Stern (1988)}
+%L'amélioration de Stern introduit la notion de collisions. Au lieu de chercher un \textit{information set} où toutes les erreurs sont dans la partie redondante, on autorise quelques erreurs ($p$ erreurs) dans la partie information. On divise la partie information en deux moitiés et on cherche des collisions entre les syndromes partiels. Complexité : Environ $2^{0.1164n}$.
+%
+%\paragraph{Version de May-Meurer-Thomae (MMT, 2011)}
+%MMT améliore Stern en utilisant des représentations multiples. Au lieu de diviser la partie information en 2, on la divise en 4 parties. Complexité : Environ $2^{0.1114n}$.
+%
+%\paragraph{Version de Becker-Joux-May-Meurer (BJMM, 2012)}
+%BJMM introduit le principe "$1 + 1 = 0$" en utilisant des sommes de vecteurs de poids fixe. Complexité : Environ $2^{0.1019n}$.
+%
+%\paragraph{Versions récentes (Both-May 2018)}
+%Les versions les plus récentes combinent techniques de représentation et algorithmes de \textit{Nearest Neighbor} avec mémoire extensive. Meilleure complexité connue : Environ $2^{0.0885n}$.
+%
+%\paragraph{Tableau comparatif des complexités}
+%\begin{table}[h]
+%\centering
+%\begin{tabular}{lcc}
+%\toprule
+%\textbf{Algorithme} & \textbf{Année} & \textbf{Exposant $\alpha$ (pour $2^{\alpha n}$)} \\
+%\midrule
+%Exhaustive search & - & 0.386 \\
+%Prange & 1962 & 0.1207 \\
+%Stern & 1988 & 0.1164 \\
+%Dumer & 1991 & 0.1162 \\
+%MMT & 2011 & 0.1114 \\
+%BJMM & 2012 & 0.1019 \\
+%Both-May & 2018 & 0.0885 \\
+%\bottomrule
+%\end{tabular}
+%\end{table}
+%
+%\paragraph{Attaques quantiques}
+%L'algorithme de Grover appliqué à ISD donne une complexité $\mathcal{O}\left(\sqrt{\frac{\binom{n}{w}}{\binom{n-k}{w}}}\right)$. Cela divise approximativement par 2 l'exposant de la complexité classique.
+
+\subsection{Inversion de matrice binaire par pivot de Gauss}
+
+L'inversion d'une matrice carrée $M$ (à coefficients dans un corps quelconque)
+par la méthode du pivot de Gauss consiste à construire la matrice augmentée $[M
+\mid I]$, puis à lui appliquer des opérations élémentaires pour transformer $M$ en
+$I$. Alors, la partie droite de la matrice augmentée contient $M^{-1}$.
+Lors de ce processus, si une colonne est nulle alors la matrice $M$ n'est pas
+inversible.
+
+L'algorithme est présenté ci-après. Notons que dans le cas binaire, nous n'avons
+pas besoin de normaliser la ligne du pivot et que l'élimination se ramène à une
+addition de lignes.
+
+\begin{algorithm}[H]
+\DontPrintSemicolon
+\Entree{Matrice $M \in \F^{n\times n}$.}
+\Sortie{$M^{-1}$ si elle existe, NULL sinon}
+Créer la matrice augmentée $A = [M \mid I_n]$.\;
+\Pour{$c \leftarrow 1$ \KwA $n$}{
+    $p \leftarrow c$\;
+    \Tq{$p \le n$ et $A_{p, c} = 0$}{$p \leftarrow p + 1$}
+    \Si{$p = n + 1$}{
+        \Return{NULL (matrice non inversible)}\;
+    }
+    \Si{$p \neq c$}{
+        Échanger les $c$--ième et $p$--ième lignes de $A$.\;
+    }
+    \Pour{$r \leftarrow 1$ \KwA $n$ tel que $r \neq c$}{
+        \Si{$A_{r, c} = 1$}{
+            Ajouter la $c$--ième ligne de $A$ à sa $r$--ième ligne.\;
+        }
+    }
+}
+\Retour{la partie droite de $A$, i.e. de la $(n + 1)$--ième à la $(2n)$--ième colonne.}\;
+\caption{Inversion de matrice binaire par le pivot de Gauss}
+\end{algorithm}
+
+Notre implémentation est la fonction \verb+matrix_inverse+ à retrouver dans le
+fichier \texttt{src/binary-algebra.c}.
+Notons les différences avec l'algorithme en pseudo-code.
+
+Puisque cette fonction sera intensément utilisée par l'algorithme de Prange avec
+des matrices de même taille, on lui donne trois arguments : la matrice à
+inverser, celle qui recevra éventuellement son inverse et une matrice « de
+brouillon ». Ces deux dernières matrices simuleront la matrice
+augmentée\footnote{Nous aurions même pu nous ramener à deux matrices, vu que la
+matrice à inverser ne servira plus ensuite. Cependant cela n'aurait pas amélioré significativement nos temps de calcul puisque \texttt{memcpy} est «très rapide».}. 
+Ainsi, \verb+matrix_inverse+ ne gère pas la mémoire et les matrices pourront
+être réutilisées tout au long de l'algorithme de Prange.
+
+Pour notifier la réussite ou l'échec de la fonction (par exemple lorsque la
+matrice n'est pas inversible), elle renvoie un entier de l'énumération
+\verb+MatrixStatus+.
+
+%\subsection{Exemple numérique}
+%Soit $M = \begin{bmatrix} 1 & 0 & 1 \\ 0 & 1 & 1 \\ 1 & 1 & 0 \end{bmatrix}$.
+%
+%\textbf{Étape 1 : Matrice augmentée}
+%$[M \mid I] = \begin{bmatrix} 1 & 0 & 1 & \big| & 1 & 0 & 0 \\ 0 & 1 & 1 & \big| & 0 & 1 & 0 \\ 1 & 1 & 0 & \big| & 0 & 0 & 1 \end{bmatrix}$
+%
+%\textbf{Résultat final (après pivot de Gauss) :}
+%$M^{-1} = \begin{bmatrix} 0 & 1 & 1 \\ 1 & 0 & 1 \\ 1 & 1 & 1 \end{bmatrix}$
+
+\subsection{Programmation et temps de calcul}
+
+La partie mathématique est implémentée dans le fichier
+\texttt{src/binary-algebra.c}.
+L'algorithme ISD est implémenté dans le fichier \texttt{src/isd.c}.
+Nous proposons un récit de notre parcours de programmation menant aux temps de
+calcul pour les paramètres demandés.
+
+\subsubsection{Protocole de test}
+\label{sec-isd-protocole-test}
+
+Le protocole de test pour les paramètres $(n, k, t)$ est le suivant.
+On prend une matrice binaire aléatoire $H \in \F^{(n-k)\times n}$ et un vecteur
+binaire aléatoire $e \in \F^n$ tel que $\hw{e} = t$.
+On suppose que le mot de code sans erreur est le vecteur nul, ainsi le mot de
+code à corriger et l'erreur coïncident.
+Nous donnons ensuite ces arguments à la fonction \texttt{decode\_prange} qui
+tentera de corriger $e$ pour obtenir le vecteur nul.
+Ce protocole de test est implémenté dans le fichier \texttt{src/isd-test-lib.c}
+et il est utilisé d'une part dans le fichier \texttt{tests/isd.c} pour des petits
+paramètres et pour comparer les implémentations, d'autre part dans
+\texttt{apps/app-test-isd.c} pour les tests avec les paramètres demandés (cf.
+section~\ref{sec-isd-tests-finaux}).
+
+Ce protocole nécessite un filet de sécurité dans le cas où la matrice aléatoire
+$H$ n'est pas de rang plein. En effet, dans ce cas aucune sous-matrice ne sera
+inversible et l'algorithme rentrerait dans une boucle infinie.
+Ce filet de sécurité se matérialise par un nombre maximum d'itérations au bout
+duquel on arrête l'algorithme de Prange.
+Nous avons fixé pour maximum d'itérations $100$ fois le nombre d'itérations
+théoriques moyen (qui vaut l'inverse de $P$, cf. équations~\ref{eq-P} et
+\ref{eq-nombre-moyen-iterations-isd}).
+En pratique ce cas a été rencontré pour des petits paramètres comme $(n, k, t) =
+(20, 10, 2)$ et pour les paramètres $(1000, 500, 10)$. Dans le premier cas on
+peut bien le comprendre : la probabilité d'obtenir une si petite matrice de rang
+plein n'est pas si grande. Dans le dernier cas, nous l'expliquerons plus en
+détail ensuite.
+
+Soulignons aussi la nécessité de tester si le mot corrigé est bien le bon (dans
+notre cas le vecteur nul).
+En effet, comme la matrice $H$ est aléatoire, $t$ n'est pas nécessairement
+inférieur ou égal à la capacité de correction du code.
+Il arrive donc que l'algorithme corrige $e$ en un vecteur non nul.
+Tout comme pour le fait que la matrice soit de rang plein, nous l'avons observé
+seulement pour de petits paramètres comme $(20, 10, 2)$.
+
+Les données recueillies sont le nombre d'itérations (i.e. le nombre de $H'$
+testées) et la durée d'exécution de \texttt{decode\_prange}.
+Pour mesurer la durée d'exécution nous utilisons la fonction \texttt{clock} de
+la bibliothèque \texttt{time}.
+
+\subsubsection{Comparaisons d'implémentation}
+\label{sec-isd-comparaison-bool-int64}
+
+Nous avons commencé notre implémentation des matrices binaires (et les vecteurs)
+en utilisant un tableau de \texttt{bool}.
+Au vu de la lenteur de l'exécution, nous avons opté pour un tableau de
+\texttt{uint64\_t}.
+Nous avons appelé la première approche « naïve » et les deux sont implémentées
+dans le même fichier avec des directives \texttt{\#ifdef USE\_NAIVE}, le choix
+lors de la compilation est automatisé dans des scripts bash.
+
+L'implémentation naïve est lente.
+En effet, un profilage\footnote{Voir fichiers du répertoire \texttt{profile/} et
+script \texttt{scripts/toy-profile-isd.sh}.} des deux approches montre que sur
+des paramètres « jouets » (ceux du tableau~\ref{tab-comparaison-bool-int}),
+\qty{93}{\percent} du temps de calcul est concentré dans la fonction
+\texttt{matrix\_add\_rows} avec l'implémentation naïve (contre
+\qty{28}{\percent} avec les \texttt{uint64\_t}).
+Nous avons aussi pu utiliser l'option \texttt{-O3} de \texttt{gcc} qui permet
+d'optimiser le fichier exécutable, notamment de rendre certaines fonctions
+(comme \texttt{matrix\_add\_rows}) «en ligne» pour réduire les opérations sur la
+pile d'exécution\footnote{Nous avons consulté
+\url{https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html} sans plus creuser
+(rappelons que nous sommes matheux).}.
+
+Comme le nombre d'itérations moyen est assez variable pour un nombre faible de
+tentatives, la grandeur de comparaison la plus raisonnable semble être la durée
+d'exécution par itération de l'algorithme de Prange.
+Le tableau~\ref{tab-comparaison-bool-int} récapitule ces données.
+Commentons-le brièvement.
+
+\begin{table}
+  \centering
+  \begin{tblr}{%
+      colspec={ccS[table-format=3.2]S[table-format=3.2]S[table-format=3.2]S[table-format=3.2]},
+      row{1-3} = {guard,font=\bfseries\small},
+    }
+    \toprule
+    \SetCell[r=3]{c} {Paramètres\\ $(n, k, t)$}
+                   & \SetCell[r=3]{c} {Nombre de\\ tentatives}
+                         & \SetCell[c=4]{c} {Durée moyenne par itération (en \unit{\micro\second})} \\
+    \cmidrule{2-6}
+                   &     & \SetCell[c=2]{c} tableau de \texttt{bool} &
+                                                                   & \SetCell[c=2]{c} tableau de \texttt{unint64\_t} \\
+    \cmidrule{2-4}
+    \cmidrule{4-6}
+                   &     & classique          & \texttt{-O3}       & classique          & \texttt{-O3}       \\
+    \midrule
+    $(20,10,2)$    & 100 & 4.47385358004827   & 1.4283727399165507 & 2.6509572901325473 & 1.5678391959798992 \\
+    $(60,30,4)$    & 100 & 86.71299414997343  & 11.756601450266794 & 21.217788715064156 & 10.052513022666476 \\
+    $(100,50,5)$   & 100 & 372.0569238718567  & 29.638597499640746 & 58.120460989664316 & 27.052664188351923 \\
+    $(160,80,10)$  & 20  & 1477.4132172696043 & 73.79160251095583  & 162.21801206365504 & 72.68815417843496  \\
+    $(200,100,10)$ & 20  & 2905.451734665556  & 134.07051334814938 & 253.21011004561018 & 113.0542494103325  \\
+    \bottomrule
+  \end{tblr}
+  \caption{Comparaison des durées d'exécution moyennes par itération pour
+  différentes implémentations (\texttt{bool} ou \texttt{uint64\_t}) et
+  options de \texttt{gcc} (classique ou \texttt{-O3}).}
+  \label{tab-comparaison-bool-int}
+\end{table}
+
+Comparons tout d'abord les compilations non optimisées (i.e. classiques).
+Le constat est sans appel pour les derniers paramètres : on gagne un facteur
+$10$ en passant des \texttt{bool} aux \texttt{uint64\_t}.
+Pour les compilations optimisées (i.e. avec l'option \texttt{-O3} de
+\texttt{gcc}), les durées ne sont pas si éloignées pour les deux
+implémentations, mais celle des \texttt{uint64\_t} reste
+meilleure\footnote{Excepté pour les plus petits paramètres où la taille, mais
+passons car ce qui nous intéresse est de se projeter vers des grands
+paramètres.}.
+
+Concernant l'optimisation des compilations pour une même implémentation, elle
+fait des prouesses pour l'approche naïve (on gagne un facteur $20$ pour les plus
+derniers paramètres) et réduit de plus de moitié les durées pour celle
+\texttt{uint64\_t}.
+
+On en conclut que l'approche à adopter est sans doute celle des
+\texttt{uint64\_t} avec une compilation optimisée.
+
+\subsubsection{Test finaux}
+\label{sec-isd-tests-finaux}
+
+Pour les tests finaux nous avons utilisé le même protocole (voir
+section~\ref{sec-isd-protocole-test}) dans le fichier
+\texttt{apps/app-test-isd.c} exécuté l'aide du script \texttt{scripts/test.isd}.
+Nous avons lancé ce script dans plusieurs fenêtres (d'émulateur de terminal) à
+la fois afin de récolter plus de données.
+
+Nous nous sommes heurtés à un problème : où tout semblait bien se passer pour les
+paramètres $(n,k,t) = (400,200,20)$, en revanche pour $(1000, 500, 10)$ la
+fonction \texttt{decode\_prange} atteignait systématiquement le maximum
+d'itérations et donc ne permettait pas de recouvrer l'erreur.
+De surcroît, en analysant le poids minimum de $e'$, nous avons constaté que
+c'était uniquement dû au fait que toutes les matrices $H'$ étaient non
+inversibles.
+
+Non sans mal, nous avons fini par en trouver la cause : la fonction
+\texttt{matrix\_set\_random} qui remplissait aléatoirement la matrice $H$.
+En effet, cette dernière utilisait la parité du retour fonction \texttt{rand}
+pour initialiser chaque bit, ce qui n'était « pas assez aléatoire » pour obtenir
+une matrice de rang plein.
+En remplissant la matrice $H$ directement avec les bits de
+\texttt{/dev/urandom}\footnote{Nous utilisons GNU/Linux.}, nous constatons que
+cela résout ce problème et on observe que l'algorithme finit toujours.
+
+Le tableau~\ref{tab-resultats-finaux-isd} résume nos résultats.
+En temps plus palpables, on obtient approximativement une durée moyenne
+d'exécution de $\qty[round-mode=none]{50}{\minute}$ pour les paramètres $(400,200,20)$ contre
+$\qty[round-mode=none]{13.6}{\second}$ pour $(1000,500,10)$.
+Bien que $n$ et $k$ aient doublé, cette différence s'explique par le taux d'erreur
+$t/n$ qui passe de $\qty[round-mode=none]{5}{\percent}$ à
+$\qty[round-mode=none]{1}{\percent}$.
+Reprenons le contexte de  la sécurité d'un cryptosystème basé sur les codes. On
+déduit de cette première observation que l'augmentation des paramètres $n$ et
+$k$ n'améliorera que très peu la sécurité. En revanche, l'augmentation du paramètre
+$t$ améliorera grandement la sécurité.
+Mécaniquement, pour augmenter $t$, il sera nécessaire d'augmenter $n$ et $k$ :
+ils sont mathématiquement liés. L'idéal est donc d'augmenter la taille $n$ et
+$k$ en conservant le même taux d'erreur $t/n$.
+Approfondissons l'analyse de ces résultats.
+
+\begin{table}
+  \centering
+  \begin{tblr}{%
+      colspec={cccS[table-format=3.2]S[table-format=3.2]S[table-format=3.2]S[table-format=3.2]},
+      row{1-3} = {guard,font=\bfseries\footnotesize},
+    }
+    \toprule
+    \SetCell[r=3]{c} {Paramètres\\ $(n, k, t)$}
+                      & \SetCell[r=3]{c} {Source\\ aléatoire\\ de $H$}
+                                         & \SetCell[r=3]{c} {Nombre de\\ tentatives}
+                                                 & \SetCell[c=2,r=2]{c} {Nombre moyen d'itérations}
+                                                                  &                   & \SetCell[c=2]{c} {Durée moyenne} & \\
+    \cmidrule{6-7}
+                      &                  &       &                &                   & \SetCell[r=2]{c} {totale\\ (en \unit{\second})}
+                                                                                                           & \SetCell[r=2]{c} {par itération\\ (en \unit{\micro\second})} \\
+    \cmidrule{4-5}
+                      &                  &       & théorique      & observé           &                    &                   \\
+    \midrule
+    $(400, 200, 20)$  & \texttt{rand()}  & $156$ & 1728050.375978 & 5863391.243589744 & 2910.9500753653847 & 496.4618519270452 \\
+    $(400, 200, 20)$  & \texttt{urandom} & $100$ & 1728050.375978 & 5788460.39        & 3040.5178029       & 525.2722827908995 \\
+    $(1000, 500, 10)$ & \texttt{urandom} & $500$ & 1071.595661    & 3622.998          & 13.634517594       & 3763.324626179755 \\
+    \bottomrule
+  \end{tblr}
+  \caption{Résultats des tests de l'algorithme de Prange.}
+  \label{tab-resultats-finaux-isd}
+\end{table}
+
+Les paramètres $(1000,500,10)$ ont conduit à une faible durée de calcul
+totale, mais la durée moyenne d'une itération est d'environ $7$ fois supérieure
+à celle pour $(400,200,20)$.
+À l'inverse, le nombre moyen d'itérations observé est largement supérieur pour
+$(400,200,20)$ que pour $(1000,500,10)$ : près de $6$~millions contre environ
+$3600$.
+Ainsi, d'une part, plus les paramètres $n$ et $k$ sont grands (pour $t$ fixé),
+plus une itération prendra du temps ; d'autre part, plus le paramètre $t$ est
+grand (pour $n$ et $k$ fixés), plus le nombre moyen d'itérations sera grand.
+À nouveau, ces exemples nous montrent l'importance majeure de $t$ par rapport à
+celle de $n$ et $k$.
+
+Éclaircissons un point : pourquoi y a-t-il une petite différence entre les
+résultats des tests pour les paramètres $(400, 200, 20)$ selon la source
+aléatoire ?
+Tout d'abord, l'influence de cette source n'y est pour rien : les mesures de
+temps ne prennent pas en compte la génération de $H$ et le choix aléatoire des
+colonnes est toujours effectué avec la fonction \texttt{rand}.
+Ensuite, la différence du nombre moyen d'itérations observé est
+purement statistique : il convergerait vers la même valeur en augmentant le
+nombre de tentatives\footnote{Cette valeur ne sera pas la valeur théorique, nous
+y viendrons dans le paragraphe suivant.}.
+Enfin, les durées moyennes plus élevées avec \texttt{urandom} (alors que le
+nombre moyen d'itérations est plus bas) pourraient être expliquées par le nombre
+de tests lancés simultanément. En effet, nous avons lancé $10$ scripts
+simultanément avec \texttt{/dev/urandom} contre $8$ avec \texttt{rand}, le tout
+sur un processeur comptant 6 cœurs physiques et 12 cœurs logiques
+(\emph{threads})\footnote{Les matheux que nous sommes en ont appris un peu plus
+sur l'informatique grâce à cela mais ne sont pas sûrs que cela soit la réelle
+cause de la différence. En tout cas cela semble être un candidat intéressant.}.
+
+Penchons-nous à présent sur la différence entre nombres moyens d'itérations
+théoriques et observés.
+Quoique plutôt petits, nos échantillons sont suffisamment grands pour écarter
+l'hypothèse de la «malchance statistique».
+Autrement dit, en augmentant le nombre de tentatives, le nombre moyen
+d'itérations observé ne tendra pas vers le théorique.
+De plus, le ratio « théorique sur observé » est sensiblement le même pour 
+$(400,200,20)$ et $(1000,500,10)$, approximativement $0,297$.
+Pour calculer le nombre moyen d'itérations théoriques, nous avons compté la
+proportion de matrices $H'$ qui contiennent $t$ colonnes fixées associées à
+l'erreur. Or, il se pourrait qu'une telle matrice ne soit pas inversible, et
+dans ce cas notre algorithme passe à une autre matrice $H'$.
+
+Nous pouvons vérifier cette hypothèse en utilisant la probabilité qu'une matrice
+binaire aléatoire de taille $k \times k$ (pour nos paramètres $n-k = k$) soit
+non inversible. Cette probabilité est donnée par la formule
+suivante\footnote{D'après
+\url{https://math.stackexchange.com/questions/71288/probability-of-a-random-n-times-n-matrix-over-mathbb-f-2-being-nonsingular}.
+Notons que, dans le cas binaire, l'ensemble des matrices inversibles et celui
+des matrices de déterminant $1$ sont égaux.} :
+\begin{equation*}
+  \frac{\Card(\operatorname{SL}_k(\F)}{\Card(\mathcal{M}_k(\F))}
+  = \frac{\prod_{i=0}^{k-1}(2^k - 2^i)}{2^{k^2}}
+  = \frac{\prod_{i=0}^{k-1}2^k(1 - 2^{i-k})}{2^{k^2}}
+  = \frac{2^{k^2}\prod_{i=0}^{k-1}(1 - 2^{i-k})}{2^{k^2}}
+  = \prod_{j=1}^{k} \left(1 - \frac{1}{2^j} \right).
+\end{equation*}
+qui converge, lorsque $k$ tend vers $+\infty$, vers
+\footnote{C'est le $q$--symbole de Pochhammer pour $q = 1/2$, ce que Wolfram
+Alpha peut calculer (lui donner \texttt{QPochhammer[1/2]}). On se base
+toujours sur la discussion de \texttt{math.stackexchange}.}
+environ $0,288788$.
+Ceci explique donc bien la différence entre théorique et observé.
+Finalement, comme ce produit converge assez vite (car $2^k$ est vite grand) on
+pourrait estimer le nombre moyen d'itérations à $1/(0,288788P)$, ce qui revient
+à multiplier nos nombres moyens théoriques actuels par $1/0,288788 \approx 3,4627$.
+
+%\section{Système McEliece}
+%
+%\subsection{Génération de clés}
+%\begin{algorithm}[H]
+%\DontPrintSemicolon
+%\KwIn{$n, k, t$ (capacité de correction)}
+%\KwOut{$(sk, pk)$}
+%Générer un code $[n, k]$ décodable avec capacité $t$ (matrice génératrice $G \in \F^{k\times n}$, décodeur $D$)\;
+%Générer $S \in \F^{k\times k}$ (inversible aléatoire) et $P \in \F^{n\times n}$ (permutation aléatoire)\;
+%Calculer $G' = SGP$\;
+%\Return{$sk = (S, G, P, D)$ et $pk = G'$}\;
+%\caption{KeyGen\_McEliece}
+%\end{algorithm}
+%
+%\subsection{Chiffrement et Déchiffrement}
+%\begin{algorithm}[H]
+%\DontPrintSemicolon
+%\KwIn{Message $m \in \F^k$, $pk = G'$, poids $t$}
+%\KwOut{Chiffré $c \in \F^n$}
+%Générer $e \in \F^n$ avec $\|e\| = t$\;
+%\Return{$c = mG' + e$}\;
+%\caption{Encrypt\_McEliece}
+%\end{algorithm}
+%
+%\begin{algorithm}[H]
+%\DontPrintSemicolon
+%\KwIn{Chiffré $c \in \F^n$, $sk = (S, G, P, D)$}
+%\KwOut{Message $m \in \F^k$}
+%Dépermuter : $c' = cP^{-1}$\;
+%Décoder : $d = \text{Decode}_G(c')$\;
+%Retirer $S$ : $m = dG^{-1}S^{-1}$\;
+%\Return{$m$}\;
+%\caption{Decrypt\_McEliece}
+%\end{algorithm}
+
+\section{Système de chiffrement MDPC}
+
+\subsection{Algorithme BitFlip}
+
+Le but de l'algorithme BitFlip est de résoudre le problème du décodage par
+syndrome (cf. section~\ref{sec-pb-decodage-syndrome}).
+Connaissant la matrice de parité $H$ et le syndrome $s$, il tentera de recouvrer
+l'erreur $e$ (telle que $s = H\transpose{e}$) en procédant itérativement.
+Il commence par prendre une erreur courante $e_c$ nulle qu'il va essayer de faire
+converger vers $e$.
+L'indicateur de convergence est le syndrome courant $s_c = s - H
+\transpose{e_c}$ qu'on cherche à rendre nul, c'est le « syndrome de l'erreur de
+l'erreur courante », formellement on a :
+\begin{equation*}
+    s_c = s - H \transpose{e_c}
+    = H \transpose{e} - H \transpose{e_c}
+    = H \transpose{(e - e_c)}.
+\end{equation*}
+Si $s_c = 0$, alors $e - e_c$ est un mot de code, et on espère que c'est le mot
+nul car alors $e = e_c$.
+Cet algorithme n'assure donc pas de recouvrer $e$ de façon systématique.
+
+À chaque itération, l'algorithme se concentre sur les bits non nuls du syndrome
+courant $s_c$, chacun fait intervenir dans son calcul certains bits de $e -
+e_c$. Précisément $(s_c)_i$ fait intervenir $(e - e_c)_j$ si $H_{i, j} \neq 0$.
+Ainsi, chaque bit de $e - e_c$ se voit attribuer un score valant le
+nombre de fois qu'il participe au calcul d'un bit non nul de $s_c$.
+
+Le seuil $T$ de l'algorithme désignera les bits de l'erreur courante $e_c$ à
+renverser (ou \emph{flip}, un $1$ est renversé en $0$ et un $0$ en $1$). Si le
+score d'un bit est supérieur ou égal au seuil $T$, alors il est renversé pour la
+prochaine itération ; sinon il reste tel quel pour la prochaine itération. Au
+fil des itérations, un même bit pourra être renversé plusieurs fois.
+
+Le poids de l'erreur $t = \hw{e}$ joue aussi un rôle, on peut l'ajouter, en plus
+de $s_c = 0$, comme condition nécessaire d'arrêt. En pratique, pour $t$ « bien
+choisi », de même que pour les dimensions et la densité de $1$ de $H$, la
+condition $s_c = 0$ suffit.
+Soulignons que la densité de $1$ est un critère essentiel à la réussite de
+l'algorithme, nous le verrons avec des matrices creuses par la suite.
+
+L'implémentation de BitFlip se trouve dans le fichier \texttt{src/mdpc.c}.
+En pratique, les calculs matriciels seront ici ramenés à des calculs sur les
+polynômes, nous le détaillerons dans la prochaine section.
+Pour compter les scores et pour savoir si $s$ est nul, on calcule des poids de
+Hamming grâce à la fonction \texttt{\_\_builtin\_popcountll(uint64\_t
+x)}\footnote{Voir
+\url{https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html}.}
+Au lieu de calculer tous les scores puis de renverser ou non les bits de l'erreur
+courante $e'$, une itération va calculer le score d'un bit et s'il est supérieur
+au seuil $T$, alors on renverse le bit de $e'$ immédiatement et on recalcule le
+syndrome courant avant de passer au bit suivant.
+Nous avons également introduit un nombre maximum d'itérations pour nous prémunir
+des cas où l'algorithme ne convergera pas.
+
+\subsection{Codes MDPC (\textit{Moderate Density Parity Check})}
+
+Les codes MDPC sont des codes linéaires correcteurs d'erreurs qui sont une
+extension des codes LDPC (\textit{Low Density Parity Check}). Un code linéaire
+binaire $\mathcal{C}$ de longueur $2n$ paire et de dimension $n$ est défini
+par sa matrice de contrôle de parité $H \in \mathbb{F}_2^{n \times 2n}$. 
+
+La spécificité structurelle d'un code MDPC réside dans la densité de cette
+matrice $H$ :
+Contrairement aux codes LDPC traditionnels où le poids de chaque ligne (le
+nombre de coefficients non nuls) est constant et très faible, les lignes d'une
+matrice MDPC possèdent un poids modéré, noté $w$.%, tel que $w = \mathcal{O}(\sqrt{n \cdot \log(n)})$.
+Pour les paramètres de sécurité nominaux du protocole BIKE-2 ($n = 4813$), le
+poids d'une ligne est calibré à $w = 39$.
+
+%Cette densité modérée offre un compromis crucial en cryptographie post-quantique. Elle est suffisamment faible pour permettre un décodage itératif extrêmement performant via l'algorithme de \textit{Bit-Flipping}, tout en étant assez élevée pour neutraliser les attaques structurelles basées sur la recherche de mots de code de petit poids (comme l'attaque ISD), qui briseraient le système si la matrice était trop creuse.
+
+Cette densité modérée offre un compromis : elle est assez faible pour permettre
+un décodage itératif performant via l'algorithme BitFlip, tout en étant assez
+élevée pour empêcher les attaques qui profiteraient de cette structure.
+
+\subsubsection{Structure quasi-cyclique et isomorphisme d'anneau}
+
+L'un des freins historiques au déploiement des cryptosystèmes basés sur les
+codes, par exemple McEliece (basé sur les codes de Goppa), est la grande taille
+de sa clé publique.
+Afin de contourner cette limitation, le protocole BIKE-2 exploite la structure
+des codes \emph{quasi-cycliques}.
+
+Une matrice est dite quasi-cyclique d'indice $2$ si elle est constituée de la
+juxtaposition de blocs circulants de taille $n \times n$. Dans le cadre de
+BIKE-2, la matrice de contrôle de parité secrète $H$ est de la forme $H = (H_0 \mid H_1)$
+où $H_0$ et $H_1$ sont deux matrices circulantes de dimension $n \times n$.
+Une matrice circulante est caractérisée par son premier vecteur ligne, chaque
+ligne successive étant obtenue par un décalage cyclique (rotation droite) d'une
+position de la ligne précédente.
+
+L'intérêt mathématique fondamental de cette configuration repose sur
+l'isomorphisme d'algèbres qui lie l'ensemble des matrices circulantes binaires
+$n \times n$ à l'anneau des polynômes $\mathcal{R} = \mathbb{F}_2[X] / (X^n - 1)$.
+
+À chaque bloc circulant $H_i$, on associe de manière bijective un polynôme
+$h_i(X) \in \mathcal{R}$ dont les coefficients coïncident avec les coefficients
+de sa première ligne :
+\begin{equation}
+  h_i(X) = \sum_{j=0}^{n-1} h_{i,j} X^j.
+\end{equation}
+Cette correspondance polynomiale induit deux propriétés fondamentales pour la
+conception informatique et la sécurité du système.
+
+Premièrement, elle permet l'optimisation de l'espace mémoire. Au lieu de stocker
+en mémoire une matrice dense de dimensions $n \times (n/2)$ bits, la structure
+quasi-cyclique permet de restreindre le stockage aux seuls coefficients de la
+première ligne des blocs.
+Ainsi la mémoire pour représenter les clés passe du quadratique
+$\mathcal{O}(n^2)$ au linéaire $\mathcal{O}(n)$.
+
+Deuxièmement, on observe la simplification des calculs.
+L'addition matricielle se réduit à une opération de XOR bit-à-bit entre les
+représentations polynomiales.
+Le produit matriciel revient à une « multiplication polynomiale
+circulante », là encore on se ramène à des calculs dans l'anneau $\mathcal{R}$.
+Le calcul modulo $X^n - 1$ assure mathématiquement la gestion des débordements
+et des rotations cycliques.
+
+C'est cette structure algébrique compacte qui permet au protocole BIKE-2 de définir sa clé publique $h(X)$ par un unique polynôme de $\mathcal{R}$ calculé par l'inversion du bloc secret $h_0(X)$ :
+\begin{equation}
+h(X) = h_1(X) \times h_0^{-1}(X) \pmod{X^n - 1}
+\end{equation}
+Pour un observateur tiers ne disposant pas des facteurs secrets, le polynôme de
+clé publique $h(X)$ est indiscernable d'un élément uniformément distribué et
+dense au sein de l'anneau, masquant ainsi totalement la nature creuse originelle
+du code.
+
+\subsubsection{Implémentation}
+
+Nous avons implémenté les opérations sur les polynômes de $\mathcal{R}$ dans le
+fichier \texttt{src/poly.c}.
+
+L'implémentation naïve d'un polynôme de l'anneau $\mathcal{R}$ consisterait à
+utiliser un tableau de booléens ou d'entiers standards, où chaque case mémoire
+stockerait un unique coefficient.
+Cependant, comme mis en évidence lors de l'analyse des profils d'exécution de
+l'ISD (cf. section~\ref{sec-isd-comparaison-bool-int64}), une telle approche
+s'avère extrêmement inefficace en temps de calcul et en espace mémoire.
+
+De nouveau, nous exploitons l'architecture 64 bits des processeurs modernes en
+compactant 64 coefficients consécutifs dans un unique entier non signé
+de 64 bits (\texttt{uint64\_t}, voir \texttt{struct PolyGF2}).
+%Pour optimiser notre code, nous avons implémenté la technique du
+%\textbf{Bit-Slicing} au sein de notre structure \texttt{PolyGF2}. Puisque nous
+%travaillons sur le corps $\mathbb{F}_2$, chaque coefficient est soit un $0$,
+%soit un $1$.
+Le nombre de mots, i.e. la taille du tableau de \texttt{uint64\_t}, nécessaires
+pour stocker un polynôme de degré $n-1$ est donc défini par $m = \lfloor (n + 63)/64 \rfloor$
+Pour $n = 4813$, le polynôme n'occupe plus que $76$ mots en mémoire.
+Voyons l'influence de cette implémentation sur les calculs de polynômes.
+
+Pour l'addition polynomiale, on se ramène à un XOR, l'instruction
+\texttt{a->coeffs[i] \^{} b->coeffs[i]} permet au processeur d'additionner
+$64$ coefficients simultanément en un seul cycle d'horloge. La boucle ne
+s'exécute plus $n$ fois, mais seulement $m$ fois, offrant
+théoriquement\footnote{Nous avons vu pour l'ISD que ce n'était pas exactement le
+cas en pratique.} un gain de performance d'un facteur $64$.
+
+La multiplication par le monôme $X$ dans $\mathcal{R}$ équivaut à un décalage
+logique vers la gauche de tous les bits. La gestion des retenues d'un mot de 64
+bits au suivant s'effectue par des masques binaires :
+%La condition cyclique imposée par le quotientage modulo $X^n-1$ est préservée en 
+on récupère le bit sortant de la position $n-1$ pour le placer à la position
+$0$.
+
+La multiplication polynomiale est implémentée via l'algorithme glissant
+\emph{Shift-and-Add}. On parcourt les bits d'un facteur : si le $i$--ème
+bit est à $1$, l'autre facteur (que l'on fait tourner cycliquement à chaque
+itération via \texttt{poly\_rotate\_right}) est additionné au résultat.
+
+%\end{itemize}
+%Ce choix de structure transforme radicalement la complexité pratique des opérations arithmétiques au sein de l'anneau :
+%\begin{itemize}
+%    \item \textbf{L'addition polynomiale} : Dans $\mathbb{F}_2$, l'addition correspond à un Ou Exclusif (XOR). Grâce au \textit{bit-slicing}, l'instruction \texttt{a->coeffs[i] \^{} b->coeffs[i]} permet au processeur d'additionner \textbf{64 coefficients simultanément} en un seul cycle d'horloge. La boucle ne s'exécute plus $n$ fois, mais seulement $\text{num\_words}$ fois, offrant un gain de performance d'un facteur 64.
+%    \item \textbf{La rotation cyclique (\texttt{poly\_rotate\_right})} : La multiplication par le monôme $X$ dans $\mathcal{R}$ équivaut à un décalage logique vers la gauche de tous les bits (\texttt{<< 1}). La gestion des retenues (\textit{carries}) d'un mot de 64 bits au suivant s'effectue par des masques binaires. La condition cyclique imposée par le quotientage modulo $X^n-1$ est préservée en récupérant le bit sortant de la position $n-1$ pour le réinjecter par un XOR à la position $0$.
+%    \item \textbf{La multiplication polynomiale} : Elle est implémentée via l'algorithme glissant \textit{Shift-and-Add}. On parcourt les bits du multiplicateur : si le $i$-ème bit est à $1$, le multiplicande (que l'on fait tourner cycliquement à chaque itération via \texttt{poly\_rotate\_right}) est additionné au résultat.
+%\end{itemize}
+
+%\subsubsection{Optimisations bas niveau et fonctions intrinsèques}
+%Afin de maximiser la vitesse d'exécution de l'algorithme de \textit{Bit-Flipping} et des calculs de poids, nous avons intégré l'utilisation de fonctions intrinsèques au compilateur GCC (\textit{built-ins}). 
+%
+%Pour le calcul du poids de Hamming (le nombre de coefficients non nuls), l'utilisation d'une boucle classique inspectant chaque bit un à un détruirait les bénéfices du \textit{bit-slicing}. À la place, nous appelons la fonction :
+%\begin{center}
+%    \texttt{\_\_builtin\_popcountll(uint64\_t x)}
+%\end{center}
+%
+%L'introduction de cette optimisation s'appuie sur la documentation technique des
+%extensions du compilateur GCC\footnote{GNU Compiler Collection, \textit{Other
+%Built-in Functions Provided by GCC}, disponible sur
+%\url{https://gcc.gnu.org/onlinedocs/gcc/Other-Builtins.html}.} ainsi que sur les
+%spécifications matérielles des architectures x86\_64\footnote{Intel Corporation,
+%\textit{Intel Architecture Instruction Set Extensions Programming Reference},
+%décrivant l'instruction matérielle \texttt{POPCNT} introduite avec SSE4.2.}. 
+%
+%En activant l'option d'optimisation maximale \texttt{-O3} de GCC lors de la compilation (cf. Section 2.3.2), le compilateur effectue une substitution directe par l'instruction assembleur matérielle \texttt{POPCNT}. Cela permet de compter le nombre de bits à $1$ d'un mot machine en un seul cycle CPU, accélérant de manière critique l'évaluation des équations de parité dans notre décodeur MDPC.
+
+\subsection{Schéma de BIKE-2 et tests}
+
+Le système de chiffrement MDPC est basé sur le schéma de BIKE-2,
+l'implémentation est dans le fichier \texttt{src/mdpc.c}.
+
+\subsubsection{Génération des clés et problème de l'inversibilité}
+
+L'étape initiale du protocole BIKE-2 repose sur l'algorithme de génération de
+clés (voir fonction \texttt{mdpc\_keygen}).
+Deux polynômes secrets $h_0(X)$ et $h_1(X)$ sont générés aléatoirement dans
+l'anneau $\mathcal{R}$ avec un poids de Hamming fixe égal à $w/2$.
+Le couple $(h_0, h_1)$ forme la clé privée et $h = h_1 \times h_0^{-1}
+\pmod{X^n-1}$ est la clé publique, en termes de matrice de parité il faut voir
+la clé publique comme le couple $(1, h)$.
+Pour que l'algorithme fonctionne, il est nécessaire que $h_0(X)$ soit inversible
+dans l'anneau $\mathcal{R}$.
+
+Lors de nos tests d'implémentation, nous avons mis en évidence une contrainte
+mathématique liée au choix de la taille de l'anneau $n$ :
+\begin{description}
+    \item[Cas des petits paramètres ($n=80$) :] En réduisant la taille de $n$
+    pour analyser visuellement les structures binaires, notre programme est
+    entré dans une boucle infinie au sein de la fonction d'inversion. Lorsque
+    $n$ (toujours petit) est non premier, la probabilité qu'un polynôme
+    aléatoire de faible poids soit inversible chute drastiquement, rendant la
+    convergence de la génération incertaine.
+    \item[Cas des paramètres nominaux ($n=4813$) :] À l'inverse, pour la taille
+    réelle de sécurité où $n$ est un nombre premier grand, l'anneau
+    $\mathcal{R}$ se comporte de manière optimale et l'algorithme d'Euclide
+    étendu trouve un inverse de façon quasi-instantanée (en moins de $0,005$
+    secondes).
+\end{description}
+
+\subsubsection{Encapsulation et injection du bruit}
+
+Le chiffrement, ou encapsulation (voir fonction \texttt{mdpc\_encrypt}), consiste
+à générer un secret partagé sous la forme d'un vecteur d'erreur global $e =
+(e_0, e_1) \in \mathbb{F}_2^{2n}$ de poids fixe $t$ (soit $t/2 = 39$ erreurs
+injectées dans chaque bloc). Le chiffré transmis est le syndrome public calculé
+par la relation $c = e_0 + e_1 \times h \pmod{X^n-1}$, où $h$ est la clé
+publique (à nouveau on peut interpréter par $(1, h)$).
+
+Afin de valider visuellement le comportement du bruit sans saturer le terminal
+d'un affichage de 4813 bits, nous avons développé une fonction d'affichage par
+indices (\texttt{print\_positions}). Plutôt que d'afficher la suite binaire
+dense, le programme liste uniquement les puissances de $X$ dont le coefficient
+est égal à $1$. Cela permet de vérifier instantanément que le poids généré
+correspond exactement à la spécification cryptographique ($t/2$).
+
+\subsubsection{Déchiffrement par BitFlip}
+
+Le déchiffrement légitime (voir fonction \texttt{mdpc\_decrypt}) s'effectue par
+l'algorithme BitFlip. Le destinataire du chiffré $c$ utilise ses clés secrètes
+$h_0$ et $h_1$ d'un poids modéré ($w = 39$) qui permettent à cet algorithme de
+fonctionner.
+%pour
+%calculer le syndrome partagé et voter sur la probabilité qu'un bit reçu soit
+%erroné. À chaque itération, les bits dépassant un seuil critique $T$ (calibré à
+%$T=26$) avant réduction sont inversés, réduisant ainsi le poids de Hamming du
+%syndrome jusqu'à sa convergence complète vers $0$.
+
+Pour valider formellement la correction algorithmique de notre code, on effectue
+une vérification après décodage en comparant l'erreur recouvrée à l'erreur
+originale $e$. 
+
+\subsubsection{Temps de calcul}
+
+Les mesures de temps d'exécution ont été réalisées sur notre environnement Linux
+Ubuntu en exploitant les optimisations bas niveau (option \texttt{-O3} de
+\texttt{gcc} et \texttt{\_\_builtin\_popcountll})\footnote{Voir fichier
+\texttt{apps/app-test-mdpc.c}.}.
+Les résultats expérimentaux pour les paramètres de base sont consignés dans le
+tableau~\ref{tab:temps_mdpc}.
+
+\begin{table}[h!]
+\centering
+\begin{tblr}{%
+    colspec={lc},
+    row{1} = {font=\bfseries\footnotesize},
+  }
+  \toprule
+  Étape du protocole MDPC & Temps d'exécution moyen (en \unit{\second}) \\
+  \midrule
+  Génération des clés  & $0{,}0038$ \\
+  Encapsulation        & $0{,}0011$ \\
+  Déchiffrement        & $0{,}0821$ \\
+  \bottomrule
+\end{tblr}
+\caption{Temps d'exécution des fonctions du système de chiffrement MDPC pour $n=4813$, $w=39$, $t=78$ et $T = 26$.}
+\label{tab:temps_mdpc}
+\end{table}
+
+L'analyse de ces données montre que le déchiffrement s'effectue en quelques dizaines
+de millisecondes. Dans la très grande majorité des exécutions, la vérification
+($e' = e$) affiche un état valide, confirmant l'exactitude du décodage. Les
+rares cas d'échecs constatés ne formalisent pas une collision mathématique de
+syndrome (dont la probabilité théorique a été démontrée comme négligeable, de
+l'ordre de $10^{-1200}$), mais correspondent à des défauts temporaires de
+convergence de l'algorithme itératif (minimum local), définissant le taux
+d'échec de déchiffrement (ou \emph{Decoding Failure Rate} (DFR)) inhérent aux
+codes MDPC.
+
+\subsubsection{Utilisation pratique}
+
+À partir des fonctions de génération de clés, de chiffrement et de
+déchiffrement, nous avons écrit un utilitaire en ligne de commande (voir
+\texttt{apps/mdpc-cli.c}). À partir de ce programme, nous proposons deux
+simulations de scénarios d'utilisation réelle, sous forme de scripts Bash.
+Nous invitons le lecteur à se rendre dans le répertoire \texttt{scenarios} pour
+lancer les \texttt{script.sh} des deux scénarios : ils décrivent étape par étape
+la situation et les commandes utilisées\footnote{Ils utilisent des couleurs pour
+distinguer les commentaires des commandes et de leur sortie.}.
+Nous ne les décrivons ici que brièvement.
+
+\paragraph{Échange de clé}
+Alice génère ses clés asymétriques. Bob crée un secret $e = (e_0, e_1)$ et le
+chiffre avec la clé publique d'Alice avant de lui envoyer.
+Alice recouvre l'erreur $e$ à partir du chiffré et de sa clé privée.
+Les deux partagent le secret $e$ et peuvent le dériver par un hachage pour
+obtenir une clé symétrique.
+
+\paragraph{Transmission d'un message}
+Alice génère ses clés asymétriques. Bob crée un secret $e = (e_0, e_1)$ et le
+chiffre avec la clé publique d'Alice, obtenant $c_0$.
+Il dérive le secret $e$ en le hachant pour obtenir un masque jetable qu'il
+applique (avec un XOR) à son message $m$ pour obtenir le chiffré $c_1$.
+Bob envoie ensuite à Alice le couple $(c_0, c_1)$.
+Alice calcule l'erreur $e$ à partir du chiffré $c_0$ et de sa clé privée.
+Puis, en utilisant la même fonction de hachage que Bob, elle obtient le même
+masque jetable en hachant $e$ et l'applique à $c_1$, recouvrant ainsi le message
+$m$.
+
+\subsection{Variation des paramètres}
+
+%\subsubsection{L'asymétrie fondamentale de complexité}
+%Le fondement de la sécurité du cryptosystème MDPC BIKE-2 repose sur une asymétrie de complexité algorithmique entre l'utilisateur légitime et l'attaquant. Cette divergence est directement illustrée par la confrontation des deux algorithmes implémentés au cours de ce projet :
+%\begin{enumerate}
+%    \item \textbf{Le déchiffrement légitime (Bit-Flipping)} : S'appuyant sur la connaissance de la clé privée creuse $H$, le destinataire corrige les $t$ erreurs en un temps polynomial via des opérations de vote locales.
+%    \item \textbf{La cryptanalyse (Attaque ISD de Prange)} : Face à une clé publique $h$ dense et d'apparence aléatoire, l'attaquant est contraint de résoudre le problème du décodage par syndrome (NP-complet dans le cas général). L'algorithme ISD réduit l'espace de recherche par rapport à une force brute naïve, mais conserve une complexité strictement exponentielle en fonction de la taille du bloc $n$, notée $\mathcal{O}(2^{c \cdot n})$.
+%\end{enumerate}
+
+\subsubsection{Analyse expérimentale de la sensibilité du seuil $T$}
+
+Le choix du seuil $T$ constitue un équilibre critique au sein de
+l'algorithme BitFlip.%\footnote{Discussions et analyses expérimentales menées sur la variation du paramètre $T$ et son impact sur la convergence du syndrome.}.
+Intuitivement, plus $T$ est petit plus l'algorithme va suspecter des erreurs et
+renverser plus de bits par itération, et plus $T$ est grand moins il le fera.
+Pour un poids de clé fixe $w = 39$ et un nombre d'erreurs initiales $t = 78$,
+nous avons procédé à une étude de sensibilité en faisant varier la valeur de $T$
+afin d'observer le comportement du taux d'échec de décodage (\emph{Decoding
+Failure Rate} ou DFR).
+
+Les résultats de nos simulations sur l'environnement de test Linux sont
+consignés dans le tableau \ref{tab:sensibilite_seuil}.
+
+\begin{table}[h!]
+\centering
+\begin{tblr}{%
+    colspec={ccX},
+    rowspec={Q[m]Q[m]Q[m]Q[m]},
+    row{1} = {font=\bfseries},
+  }
+\toprule
+Seuil $T$ & Comportement du décodeur & Analyse \\
+\midrule
+$T \in [27, 28]$ & Succès systématique & Convergence optimale vers l'erreur originale en $\approx 0,2$ s. \\
+\midrule
+$T = 29$ & Point de bascule & Apparition des premiers taux d'échec de convergence. \\
+\midrule
+$T \ge 36$ & Échec systématique & Stagnation immédiate du poids du syndrome (minimum local). \\
+\bottomrule
+\end{tblr}
+\caption{Impact de la variation du seuil $T$ sur la convergence du décodeur MDPC}
+\label{tab:sensibilite_seuil}
+\end{table}
+
+
+L'analyse croisée de ces mesures permet de dégager trois phases distinctes :
+\begin{description}
+    \item[Zone de convergence nominale ($T = 27$ et $T = 28$) :]
+    Statistiquement, le nombre d'équations de parité insatisfaites pour un bit
+    réellement erroné se situe dans cette plage lors des premières itérations.
+    Le décodeur cible précisément les bits corrompus tout en maintenant la
+    probabilité de faux positifs (renverser un bit correct) proche de zéro.
+    \item[Zone de transition critique ($T = 29$) :] Ce seuil marque le début
+    d'un compromis instable. L'exigence de vote devenant plus stricte, certains
+    bits erronés ne parviennent plus à atteindre le score de $29$ requis dès le
+    premier tour. Le nombre de corrections initiales diminue, ce qui maintient
+    un niveau de bruit élevé dans le syndrome courant et engendre des boucles
+    d'échec de convergence.
+    \item[Zone de stagnation par sévérité ($T \ge 36$) :] En augmentant le seuil
+    de $+10$ par rapport à la zone nominale, la condition imposée devient
+    mathématiquement trop restrictive (exiger $36$ équations insatisfaites sur
+    un maximum possible de $w=39$). Le décodeur n'effectue plus aucune
+    inversion, figeant le syndrome à son poids initial et provoquant un échec
+    par stagnation.
+\end{description}
+Cette étude met en évidence l'existence d'une transition de phase géométrique
+propre aux codes MDPC, confirmant que le calibrage de $T$ ne peut se faire
+empiriquement au hasard mais répond à de strictes contraintes probabilistes
+liées au poids $w$ de la clé privée.
+
+\subsubsection{Variation de la taille $n$}
+
+Les tests d'exécution menés sous notre environnement Linux Ubuntu mettent en
+évidence cette barrière de sécurité. Le tableau \ref{tab:comparatif_isd_mdpc}
+synthétise le comportement des deux approches selon la taille des paramètres
+étudiés.
+
+\begin{table}[h!]
+\centering
+\begin{tblr}{%
+    colspec={lcc},
+    row{1}={font=\bfseries},
+  }
+\toprule
+Taille de l'anneau ($n$) & Temps déchiffrement MDPC & Attaque ISD \\
+\midrule
+$n = 101$ (paramètre d'étude) &  échec & possible \\
+$n = 191$ (paramètre d'étude) &  échec & possible \\
+$n = 4813$ (paramètre de base) & \qty{0.1120}{\second} & impossible \\
+\bottomrule
+\end{tblr}
+\caption{Temps d'exécution du déchiffrement MDPC et possibilité de l'attaque ISD}
+\label{tab:comparatif_isd_mdpc}
+\end{table}
+
+%L'analyse croisée de ces données met en relief deux comportements distincts :
+
+%\paragraph{Limites des dimensions réduites : phénomène de saturation}
+L'expérimentation menée sur des anneaux de tailles réduites ($n \in [101, 191]$) met en évidence une rupture comportementale majeure par rapport aux dimensions nominales de sécurité ($n = 4813$). L'analyse de ces structures simplifiées fait ressortir deux constats théoriques et pratiques essentiels :
+\begin{description}
+    \item[Instantanéité de la génération des clés :] Pour ces dimensions
+    extrêmement faibles, la complexité calculatoire de l'étape de génération des
+    clés devient mathématiquement négligeable. Le temps d'exécution mesuré sur
+    notre environnement système est de $0{,}0000$ seconde, confirmant le coût
+    d'inversion quasi nul des petits polynômes circulants.
+    \item[Échec structurel du décodage par BitFlip :] Malgré la rapidité des
+    calculs préliminaires, l'algorithme de décodage échoue de manière
+    systématique à converger vers l'erreur originale. Cet échec n'est pas
+    logiciel, mais purement géométrique : il s'explique par la densité excessive
+    de la matrice de parité secrète. 
+\end{description}
+
+En effet, alors qu'à $n = 4813$ la matrice est hautement creuse
+(\textit{sparse}) avec un ratio de lignes de seulement $\approx 0{,}8\%$, ce
+rapport grimpe à près de $9\%$ pour un anneau comme $n = 101$ ($w = 9$). Les
+lignes de la matrice se chevauchent de manière critique, provoquant l'annulation
+mutuelle des bits d'erreurs modulo 2 lors du calcul des syndromes. Les équations
+de parité n'apportent plus une information probabiliste fiable, ce qui piège le
+décodeur dans des minimums locaux non nuls et illustre parfaitement la nécessité
+d'utiliser de grands anneaux pour assurer la correction d'erreur dans les
+cryptosystèmes de ce type.
+\begin{description}
+    \item[À petite échelle ($n=101$ et $n=191$) :] Nous avons constaté la
+    possibilité d'attaque pour des paramètres similaires\footnote{Le $n$ pour
+    MDPC correspond au $k$ dans la partie sur ISD.}. L'espace combinatoire pour
+    sélectionner un ensemble d'information sans erreur parmi les colonnes est
+    extrêmement restreint, ce qui permet de valider expérimentalement la
+    correction de l'implémentation de l'attaque.
+    \item[À l'échelle de sécurité nominale ($n=4813$) :] Tandis que le
+    déchiffrement par BitFlip maintient une efficacité pratique
+    quasi-instantanée ($\approx 10$ ms) grâce à notre implémentation, l'attaque
+    ISD subit l'explosion combinatoire que nous essaierons d'estimer pour
+    conclure ce rapport.
+\end{description}
+
+%Cette confrontation concrétise la viabilité de BIKE-2 comme candidat sérieux au processus de standardisation du NIST pour la cryptographie post-quantique : il offre des tailles de clés drastiquement réduites par rapport au système de McEliece classique (grâce à la structure quasi-cyclique) tout en garantissant, via l'impuissance pratique de l'ISD, une sécurité à long terme face aux menaces de calcul conventionnel et quantique.
+
+\section{Conclusion}
+
+Pour conclure, confrontons les résultats de nos deux parties : l'algorithme ISD
+(qui constitue une attaque) et le système de chiffrement MDPC basé sur le schéma
+de BIKE-2.
+
+Reprenons nos formules de nombre d'itérations moyen pour ISD, avec les
+paramètres de notre système MDPC $(n, k, t) = (9626, 4813,
+78)$\footnote{Attention, la variable $n$ représente des paramètres différents du
+code dans chacune des deux parties (ISD et MDPC), ici on prend $n$ la longueur de
+code comme pour la partie sur ISD.}
+on obtient $1/P \approx \num{4.13930e+23}$ et en lui appliquant notre facteur de
+correction ($\approx 3,4627$), on arrive à \num{1.43331e+24} itérations en
+moyenne.
+Considérons la durée moyenne d'une itération de
+$\qty{3763.32}{\micro\second}$ (trouvée expérimentalement pour $(n, k, t) =
+(1000, 500, 10)$), ce qui est largement sous-estimé pour nos paramètres MDPC car
+la complexité de l'inversion par élimination de Gauss est cubique.
+On aboutit à une borne inférieure (à nouveau sous-estimée) de durée moyenne
+totale, en années, pour notre programme implémentant ISD de :
+\begin{equation*}
+    \frac{\num{1.43331e+24} \times \num{3763.32e-6}}{60 \times 60 \times 24 \times 365}
+    \approx \num{1.710428e+14}
+\end{equation*}
+soit plus de $\num[round-mode=none]{170000}$ milliards d'années.
+
+Ceci illustre bien l'efficacité et la sécurité du schéma de BIKE-2.
+En effet, le déchiffrement légitime se réalise en une fraction de seconde,
+tandis que l'attaquant muni de notre implémentation d'ISD nécessiterait des
+milliers de milliards d'années pour espérer décrypter un chiffré.
+Même en prenant un algorithme plus performant et en optimisant l'implémentation,
+nous serions bloqués par la barrière de la complexité de ce type d'algorithme en
+$O(2^{\alpha n})$, pour notre algorithme $O(2^{0,1207n})$.
+
+\end{document}

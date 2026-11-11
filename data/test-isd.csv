@@ -1,0 +1,2 @@
+n,k,t,expected_iterations,run,iterations,time_sec
+400,200,20,1728050.375978,1,5430608,2371.644560

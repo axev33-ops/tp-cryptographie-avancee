@@ -1,0 +1,2 @@
+n,k,t,expected_iterations,avg_iterations,avg_time_sec,successful_runs,time_per_iter_us
+400,200,20,1728050.375978,5863391.243589744,2910.9500753653847,156,496.4618519270452

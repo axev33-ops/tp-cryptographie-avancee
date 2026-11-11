@@ -1,0 +1,354 @@
+Flat profile:
+
+Each sample counts as 0.01 seconds.
+  %   cumulative   self              self     total           
+ time   seconds   seconds    calls   s/call   s/call  name    
+ 27.84      9.11     9.11 1633843860     0.00     0.00  matrix_add_rows
+ 21.07     16.00     6.89 3391915493     0.00     0.00  matrix_get_bit
+ 19.77     22.48     6.47   224529     0.00     0.00  matrix_inverse
+ 19.16     28.75     6.27   224529     0.00     0.00  matrix_extract_columns
+  6.82     30.98     2.23 871106607     0.00     0.00  matrix_set_bit_1
+  1.47     31.45     0.48                             _init
+  1.16     31.84     0.38    14135     0.00     0.00  vector_get_bit
+  1.04     32.17     0.34   224869     0.00     0.00  permutation_shuffle
+  0.89     32.47     0.29 37633922     0.00     0.00  matrix_swap_rows
+  0.57     32.65     0.18   673587     0.00     0.00  matrix_have_same_dimensions
+  0.15     32.70     0.05    64972     0.00     0.00  vector_multiply_by_matrix_left
+  0.03     32.71     0.01   224529     0.00     0.00  matrix_set_identity
+  0.03     32.72     0.01      340     0.00     0.00  matrix_set_random
+  0.00     32.72     0.00  2765135     0.00     0.00  vector_set_bit_1
+  0.00     32.72     0.00   679106     0.00     0.00  matrix_set_bit_0
+  0.00     32.72     0.00   449058     0.00     0.00  matrix_set_zeros
+  0.00     32.72     0.00   224529     0.00     0.00  matrix_copy_coeffs
+  0.00     32.72     0.00   224529     0.00     0.00  matrix_is_square
+  0.00     32.72     0.00    65652     0.00     0.00  vector_set_zeros
+  0.00     32.72     0.00    64972     0.00     0.00  vector_hamming_weight
+  0.00     32.72     0.00     1030     0.00     0.00  vector_create
+  0.00     32.72     0.00     1030     0.00     0.00  vector_destroy
+  0.00     32.72     0.00     1025     0.00     0.00  matrix_create
+  0.00     32.72     0.00     1025     0.00     0.00  matrix_destroy
+  0.00     32.72     0.00      340     0.00     0.00  compute_syndrome
+  0.00     32.72     0.00      340     0.00     0.09  decode_prange
+  0.00     32.72     0.00      340     0.00     0.00  generate_random_error
+  0.00     32.72     0.00      340     0.00     0.00  permutation_create
+  0.00     32.72     0.00      340     0.00     0.00  permutation_destroy
+  0.00     32.72     0.00      340     0.00     0.00  prange_context_create
+  0.00     32.72     0.00      340     0.00     0.00  prange_context_destroy
+  0.00     32.72     0.00      340     0.00     0.00  vector_add
+  0.00     32.72     0.00        5     0.00     0.00  compute_expected_iterations
+  0.00     32.72     0.00        5     0.00     6.45  run_batch_test
+
+ %         the percentage of the total running time of the
+time       program used by this function.
+
+cumulative a running sum of the number of seconds accounted
+ seconds   for by this function and those listed above it.
+
+ self      the number of seconds accounted for by this
+seconds    function alone.  This is the major sort for this
+           listing.
+
+calls      the number of times this function was invoked, if
+           this function is profiled, else blank.
+
+ self      the average number of milliseconds spent in this
+ms/call    function per call, if this function is profiled,
+	   else blank.
+
+ total     the average number of milliseconds spent in this
+ms/call    function and its descendents per call, if this
+	   function is profiled, else blank.
+
+name       the name of the function.  This is the minor sort
+           for this listing. The index shows the location of
+	   the function in the gprof listing. If the index is
+	   in parenthesis it shows where it would appear in
+	   the gprof listing if it were to be printed.
+
+Copyright (C) 2012-2026 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+		     Call graph (explanation follows)
+
+
+granularity: each sample hit covers 4 byte(s) for 0.03% of 32.72 seconds
+
+index % time    self  children    called     name
+                0.00   32.24       5/5           main [2]
+[1]     98.5    0.00   32.24       5         run_batch_test [1]
+                0.00   32.19     340/340         decode_prange [3]
+                0.00    0.04     340/340         generate_random_error [17]
+                0.01    0.00     340/340         matrix_set_random [18]
+                0.00    0.00     340/64972       vector_hamming_weight [27]
+                0.00    0.00      10/1030        vector_create [28]
+                0.00    0.00      10/1030        vector_destroy [29]
+                0.00    0.00       5/5           compute_expected_iterations [35]
+                0.00    0.00       5/1025        matrix_create [30]
+                0.00    0.00       5/1025        matrix_destroy [31]
+-----------------------------------------------
+                                                 <spontaneous>
+[2]     98.5    0.00   32.24                 main [2]
+                0.00   32.24       5/5           run_batch_test [1]
+-----------------------------------------------
+                0.00   32.19     340/340         run_batch_test [1]
+[3]     98.4    0.00   32.19     340         decode_prange [3]
+                6.47   13.08  224529/224529      matrix_inverse [4]
+                6.27    5.64  224529/224529      matrix_extract_columns [5]
+                0.34    0.00  224529/224869      permutation_shuffle [11]
+                0.34    0.00   12600/14135       vector_get_bit [10]
+                0.05    0.00   64632/64972       vector_multiply_by_matrix_left [16]
+                0.00    0.00     340/340         prange_context_create [20]
+                0.00    0.00     340/340         compute_syndrome [21]
+                0.00    0.00   64632/64972       vector_hamming_weight [27]
+                0.00    0.00    1500/2765135     vector_set_bit_1 [22]
+                0.00    0.00     340/65652       vector_set_zeros [26]
+                0.00    0.00     340/340         prange_context_destroy [33]
+                0.00    0.00     340/340         vector_add [34]
+-----------------------------------------------
+                6.47   13.08  224529/224529      decode_prange [3]
+[4]     59.7    6.47   13.08  224529         matrix_inverse [4]
+                9.11    0.00 1633843860/1633843860     matrix_add_rows [6]
+                3.44    0.00 1689972793/3391915493     matrix_get_bit [7]
+                0.29    0.00 37633922/37633922     matrix_swap_rows [12]
+                0.12    0.00  449058/673587      matrix_have_same_dimensions [13]
+                0.00    0.06  224529/224529      matrix_copy_coeffs [14]
+                0.01    0.05  224529/224529      matrix_set_identity [15]
+                0.00    0.00  224529/224529      matrix_is_square [25]
+-----------------------------------------------
+                6.27    5.64  224529/224529      decode_prange [3]
+[5]     36.4    6.27    5.64  224529         matrix_extract_columns [5]
+                3.46    0.00 1701942700/3391915493     matrix_get_bit [7]
+                2.18    0.00 851252523/871106607     matrix_set_bit_1 [8]
+                0.00    0.00  224529/449058      matrix_set_zeros [24]
+-----------------------------------------------
+                9.11    0.00 1633843860/1633843860     matrix_inverse [4]
+[6]     27.8    9.11    0.00 1633843860         matrix_add_rows [6]
+-----------------------------------------------
+                3.44    0.00 1689972793/3391915493     matrix_inverse [4]
+                3.46    0.00 1701942700/3391915493     matrix_extract_columns [5]
+[7]     21.1    6.89    0.00 3391915493         matrix_get_bit [7]
+-----------------------------------------------
+                0.00    0.00  676894/871106607     matrix_set_random [18]
+                0.05    0.00 19177190/871106607     matrix_set_identity [15]
+                2.18    0.00 851252523/871106607     matrix_extract_columns [5]
+[8]      6.8    2.23    0.00 871106607         matrix_set_bit_1 [8]
+-----------------------------------------------
+                                                 <spontaneous>
+[9]      1.5    0.48    0.00                 _init [9]
+-----------------------------------------------
+                0.04    0.00    1535/14135       generate_random_error [17]
+                0.34    0.00   12600/14135       decode_prange [3]
+[10]     1.2    0.38    0.00   14135         vector_get_bit [10]
+-----------------------------------------------
+                0.00    0.00     340/224869      permutation_create [19]
+                0.34    0.00  224529/224869      decode_prange [3]
+[11]     1.0    0.34    0.00  224869         permutation_shuffle [11]
+-----------------------------------------------
+                0.29    0.00 37633922/37633922     matrix_inverse [4]
+[12]     0.9    0.29    0.00 37633922         matrix_swap_rows [12]
+-----------------------------------------------
+                0.06    0.00  224529/673587      matrix_copy_coeffs [14]
+                0.12    0.00  449058/673587      matrix_inverse [4]
+[13]     0.6    0.18    0.00  673587         matrix_have_same_dimensions [13]
+-----------------------------------------------
+                0.00    0.06  224529/224529      matrix_inverse [4]
+[14]     0.2    0.00    0.06  224529         matrix_copy_coeffs [14]
+                0.06    0.00  224529/673587      matrix_have_same_dimensions [13]
+-----------------------------------------------
+                0.01    0.05  224529/224529      matrix_inverse [4]
+[15]     0.2    0.01    0.05  224529         matrix_set_identity [15]
+                0.05    0.00 19177190/871106607     matrix_set_bit_1 [8]
+                0.00    0.00  224529/449058      matrix_set_zeros [24]
+-----------------------------------------------
+                0.00    0.00     340/64972       compute_syndrome [21]
+                0.05    0.00   64632/64972       decode_prange [3]
+[16]     0.2    0.05    0.00   64972         vector_multiply_by_matrix_left [16]
+                0.00    0.00 2762135/2765135     vector_set_bit_1 [22]
+                0.00    0.00   64972/65652       vector_set_zeros [26]
+-----------------------------------------------
+                0.00    0.04     340/340         run_batch_test [1]
+[17]     0.1    0.00    0.04     340         generate_random_error [17]
+                0.04    0.00    1535/14135       vector_get_bit [10]
+                0.00    0.00    1500/2765135     vector_set_bit_1 [22]
+                0.00    0.00     340/65652       vector_set_zeros [26]
+-----------------------------------------------
+                0.01    0.00     340/340         run_batch_test [1]
+[18]     0.0    0.01    0.00     340         matrix_set_random [18]
+                0.00    0.00  676894/871106607     matrix_set_bit_1 [8]
+                0.00    0.00  679106/679106      matrix_set_bit_0 [23]
+-----------------------------------------------
+                0.00    0.00     340/340         prange_context_create [20]
+[19]     0.0    0.00    0.00     340         permutation_create [19]
+                0.00    0.00     340/224869      permutation_shuffle [11]
+-----------------------------------------------
+                0.00    0.00     340/340         decode_prange [3]
+[20]     0.0    0.00    0.00     340         prange_context_create [20]
+                0.00    0.00     340/340         permutation_create [19]
+                0.00    0.00    1020/1025        matrix_create [30]
+                0.00    0.00    1020/1030        vector_create [28]
+-----------------------------------------------
+                0.00    0.00     340/340         decode_prange [3]
+[21]     0.0    0.00    0.00     340         compute_syndrome [21]
+                0.00    0.00     340/64972       vector_multiply_by_matrix_left [16]
+-----------------------------------------------
+                0.00    0.00    1500/2765135     decode_prange [3]
+                0.00    0.00    1500/2765135     generate_random_error [17]
+                0.00    0.00 2762135/2765135     vector_multiply_by_matrix_left [16]
+[22]     0.0    0.00    0.00 2765135         vector_set_bit_1 [22]
+-----------------------------------------------
+                0.00    0.00  679106/679106      matrix_set_random [18]
+[23]     0.0    0.00    0.00  679106         matrix_set_bit_0 [23]
+-----------------------------------------------
+                0.00    0.00  224529/449058      matrix_set_identity [15]
+                0.00    0.00  224529/449058      matrix_extract_columns [5]
+[24]     0.0    0.00    0.00  449058         matrix_set_zeros [24]
+-----------------------------------------------
+                0.00    0.00  224529/224529      matrix_inverse [4]
+[25]     0.0    0.00    0.00  224529         matrix_is_square [25]
+-----------------------------------------------
+                0.00    0.00     340/65652       decode_prange [3]
+                0.00    0.00     340/65652       generate_random_error [17]
+                0.00    0.00   64972/65652       vector_multiply_by_matrix_left [16]
+[26]     0.0    0.00    0.00   65652         vector_set_zeros [26]
+-----------------------------------------------
+                0.00    0.00     340/64972       run_batch_test [1]
+                0.00    0.00   64632/64972       decode_prange [3]
+[27]     0.0    0.00    0.00   64972         vector_hamming_weight [27]
+-----------------------------------------------
+                0.00    0.00      10/1030        run_batch_test [1]
+                0.00    0.00    1020/1030        prange_context_create [20]
+[28]     0.0    0.00    0.00    1030         vector_create [28]
+-----------------------------------------------
+                0.00    0.00      10/1030        run_batch_test [1]
+                0.00    0.00    1020/1030        prange_context_destroy [33]
+[29]     0.0    0.00    0.00    1030         vector_destroy [29]
+-----------------------------------------------
+                0.00    0.00       5/1025        run_batch_test [1]
+                0.00    0.00    1020/1025        prange_context_create [20]
+[30]     0.0    0.00    0.00    1025         matrix_create [30]
+-----------------------------------------------
+                0.00    0.00       5/1025        run_batch_test [1]
+                0.00    0.00    1020/1025        prange_context_destroy [33]
+[31]     0.0    0.00    0.00    1025         matrix_destroy [31]
+-----------------------------------------------
+                0.00    0.00     340/340         prange_context_destroy [33]
+[32]     0.0    0.00    0.00     340         permutation_destroy [32]
+-----------------------------------------------
+                0.00    0.00     340/340         decode_prange [3]
+[33]     0.0    0.00    0.00     340         prange_context_destroy [33]
+                0.00    0.00    1020/1025        matrix_destroy [31]
+                0.00    0.00    1020/1030        vector_destroy [29]
+                0.00    0.00     340/340         permutation_destroy [32]
+-----------------------------------------------
+                0.00    0.00     340/340         decode_prange [3]
+[34]     0.0    0.00    0.00     340         vector_add [34]
+-----------------------------------------------
+                0.00    0.00       5/5           run_batch_test [1]
+[35]     0.0    0.00    0.00       5         compute_expected_iterations [35]
+-----------------------------------------------
+
+ This table describes the call tree of the program, and was sorted by
+ the total amount of time spent in each function and its children.
+
+ Each entry in this table consists of several lines.  The line with the
+ index number at the left hand margin lists the current function.
+ The lines above it list the functions that called this function,
+ and the lines below it list the functions this one called.
+ This line lists:
+     index	A unique number given to each element of the table.
+		Index numbers are sorted numerically.
+		The index number is printed next to every function name so
+		it is easier to look up where the function is in the table.
+
+     % time	This is the percentage of the `total' time that was spent
+		in this function and its children.  Note that due to
+		different viewpoints, functions excluded by options, etc,
+		these numbers will NOT add up to 100%.
+
+     self	This is the total amount of time spent in this function.
+
+     children	This is the total amount of time propagated into this
+		function by its children.
+
+     called	This is the number of times the function was called.
+		If the function called itself recursively, the number
+		only includes non-recursive calls, and is followed by
+		a `+' and the number of recursive calls.
+
+     name	The name of the current function.  The index number is
+		printed after it.  If the function is a member of a
+		cycle, the cycle number is printed between the
+		function's name and the index number.
+
+
+ For the function's parents, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the function into this parent.
+
+     children	This is the amount of time that was propagated from
+		the function's children into this parent.
+
+     called	This is the number of times this parent called the
+		function `/' the total number of times the function
+		was called.  Recursive calls to the function are not
+		included in the number after the `/'.
+
+     name	This is the name of the parent.  The parent's index
+		number is printed after it.  If the parent is a
+		member of a cycle, the cycle number is printed between
+		the name and the index number.
+
+ If the parents of the function cannot be determined, the word
+ `<spontaneous>' is printed in the `name' field, and all the other
+ fields are blank.
+
+ For the function's children, the fields have the following meanings:
+
+     self	This is the amount of time that was propagated directly
+		from the child into the function.
+
+     children	This is the amount of time that was propagated from the
+		child's children to the function.
+
+     called	This is the number of times the function called
+		this child `/' the total number of times the child
+		was called.  Recursive calls by the child are not
+		listed in the number after the `/'.
+
+     name	This is the name of the child.  The child's index
+		number is printed after it.  If the child is a
+		member of a cycle, the cycle number is printed
+		between the name and the index number.
+
+ If there are any cycles (circles) in the call graph, there is an
+ entry for the cycle-as-a-whole.  This entry shows who called the
+ cycle (as parents) and the members of the cycle (as children.)
+ The `+' recursive calls entry shows the number of function calls that
+ were internal to the cycle, and the calls entry for each member shows,
+ for that member, how many times it was called from other members of
+ the cycle.
+
+Copyright (C) 2012-2026 Free Software Foundation, Inc.
+
+Copying and distribution of this file, with or without modification,
+are permitted in any medium without royalty provided the copyright
+notice and this notice are preserved.
+
+Index by function name
+
+   [9] _init                   [4] matrix_inverse         [33] prange_context_destroy
+  [35] compute_expected_iterations [25] matrix_is_square   [1] run_batch_test
+  [21] compute_syndrome       [23] matrix_set_bit_0       [34] vector_add
+   [3] decode_prange           [8] matrix_set_bit_1       [28] vector_create
+  [17] generate_random_error  [15] matrix_set_identity    [29] vector_destroy
+   [6] matrix_add_rows        [18] matrix_set_random      [10] vector_get_bit
+  [14] matrix_copy_coeffs     [24] matrix_set_zeros       [27] vector_hamming_weight
+  [30] matrix_create          [12] matrix_swap_rows       [16] vector_multiply_by_matrix_left
+  [31] matrix_destroy         [19] permutation_create     [22] vector_set_bit_1
+   [5] matrix_extract_columns [32] permutation_destroy    [26] vector_set_zeros
+   [7] matrix_get_bit         [11] permutation_shuffle
+  [13] matrix_have_same_dimensions [20] prange_context_create
